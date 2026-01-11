@@ -2,7 +2,7 @@ import asyncio
 import random
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Header, BackgroundTasks, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 app = FastAPI(title="Smarsh Backend Assessment")
 
@@ -22,6 +22,29 @@ def get_db():
 class TranscriptPayload(BaseModel):
     conversation_id: str
     text: str
+    
+    @field_validator('text')
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        """
+        Validates text field before processing.
+        
+        Rules:
+        - Must not be empty (after stripping whitespace)
+        - Must not exceed 5000 characters
+        
+        Raises:
+        - ValueError: If validation fails (FastAPI converts to 422)
+        """
+        # Check if empty (after stripping whitespace)
+        if not v or not v.strip():
+            raise ValueError('Text field cannot be empty')
+        
+        # Check if exceeds 5000 characters
+        if len(v) > 5000:
+            raise ValueError('Text field cannot exceed 5000 characters')
+        
+        return v
 
 class AgentResponse(BaseModel):
     conversation_id: str
@@ -79,7 +102,6 @@ async def run_rescore_pipeline(tenant_id: str, conversation_id: str, db: dict):
         existing_transcript["tags"].append("review_required")
     
     db[tenant_id][conversation_id] = existing_transcript
-
 
 # --- ENDPOINTS ---
 @app.post("/ingest", status_code=202)
