@@ -55,6 +55,32 @@ async def run_data_pipeline(tenant_id: str, data: TranscriptPayload, db: dict):
         db[tenant_id] = {}
     db[tenant_id][data.conversation_id] = result
 
+
+async def run_rescore_pipeline(tenant_id: str, conversation_id: str, db: dict):
+    """
+    Re-calculates sentiment score for existing transcript.
+    Adds 'review_required' tag if score drops below 0.5.
+    """
+    await asyncio.sleep(3)  # Simulate AI processing time
+    
+    # Fetch existing data
+    tenant_db = db.get(tenant_id, {})
+    existing_transcript = tenant_db.get(conversation_id)
+    
+    if not existing_transcript:
+        return  # Item not found
+    
+    old_score = existing_transcript["sentiment_score"]
+    variance = random.uniform(-0.5, 0.1)  # bias toward negative
+    new_score = max(0.0, min(1.0, round(old_score + variance, 3)))
+    existing_transcript["sentiment_score"] = new_score
+    
+    if new_score < 0.5 and "review_required" not in existing_transcript["tags"]:
+        existing_transcript["tags"].append("review_required")
+    
+    db[tenant_id][conversation_id] = existing_transcript
+
+
 # --- ENDPOINTS ---
 @app.post("/ingest", status_code=202)
 async def ingest_transcript(
@@ -80,3 +106,41 @@ async def get_result(conversation_id: str, x_tenant_id: str = Header(...), db: d
     if not item:
         raise HTTPException(status_code=404, detail="Item not found or processing")
     return item
+
+@app.post("/rescore/{conversation_id}", status_code=202)
+async def rescore_transcript(
+    conversation_id: str,
+    background_tasks: BackgroundTasks,
+    x_tenant_id: str = Header(...),
+    db: dict = Depends(get_db)
+):
+    """
+    Re-scores an existing transcript.
+    """
+    # Check if transcript exists before queuing
+    tenant_db = db.get(x_tenant_id, {})
+    if conversation_id not in tenant_db:
+        raise HTTPException(status_code=404, detail="Transcript not found")
+    
+    # Queue the re-score task
+    background_tasks.add_task(run_rescore_pipeline, x_tenant_id, conversation_id, db)
+    
+    return {
+        "message": "Re-score started",
+        "job_id": conversation_id,
+        "status": "QUEUED"
+    }
+
+#--- HELPER ENDPOINT ---
+@app.get("/debug/db")
+async def debug_view_db(db: dict = Depends(get_db)):
+    """
+    DEBUG ONLY: View entire database contents.
+    
+    Returns the entire in-memory database structure.
+    """
+    return {
+        "database": db,
+        "tenant_count": len(db),
+        "total_records": sum(len(tenant_data) for tenant_data in db.values())
+    }
