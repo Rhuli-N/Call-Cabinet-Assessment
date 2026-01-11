@@ -1,13 +1,22 @@
 import asyncio
 import random
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Header, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header, BackgroundTasks, Depends
 from pydantic import BaseModel
 
 app = FastAPI(title="Smarsh Backend Assessment")
 
 # --- IN-MEMORY DATA STORE (Mocking SQL/Elastic) ---
 DB = {}
+
+def get_db():
+    """
+    Dependency function that provides database access.
+    
+    FastAPI will call this function and inject the result into endpoints.
+    """
+    return DB
+
 
 # --- MODELS ---
 class TranscriptPayload(BaseModel):
@@ -22,7 +31,7 @@ class AgentResponse(BaseModel):
     status: str
 
 # --- ASYNC PROCESSOR (Simulating your "Pipeline") ---
-async def run_data_pipeline(tenant_id: str, data: TranscriptPayload):
+async def run_data_pipeline(tenant_id: str, data: TranscriptPayload, db: dict):
     """
     Simulates a microservice that processes data asynchronously.
     """
@@ -42,29 +51,30 @@ async def run_data_pipeline(tenant_id: str, data: TranscriptPayload):
     }
     
     # Persist to Mock DB
-    if tenant_id not in DB:
-        DB[tenant_id] = {}
-    DB[tenant_id][data.conversation_id] = result
+    if tenant_id not in db:
+        db[tenant_id] = {}
+    db[tenant_id][data.conversation_id] = result
 
 # --- ENDPOINTS ---
 @app.post("/ingest", status_code=202)
 async def ingest_transcript(
     payload: TranscriptPayload,
     background_tasks: BackgroundTasks,
-    x_tenant_id: str = Header(...)
+    x_tenant_id: str = Header(...),
+    db: dict = Depends(get_db)
 ):
     if not x_tenant_id:
         raise HTTPException(status_code=400, detail="Missing Tenant ID")
     
-    background_tasks.add_task(run_data_pipeline, x_tenant_id, payload)
+    background_tasks.add_task(run_data_pipeline, x_tenant_id, payload, db)
     return {"message": "Ingest started", "job_id": payload.conversation_id, "status": "QUEUED"}
 
 @app.get("/results/{conversation_id}", response_model=AgentResponse)
-async def get_result(conversation_id: str, x_tenant_id: str = Header(...)):
+async def get_result(conversation_id: str, x_tenant_id: str = Header(...), db: dict = Depends(get_db)):
     """
     Retrieves processed data. STRICTLY ISOLATED by x_tenant_id.
     """
-    tenant_db = DB.get(x_tenant_id, {})
+    tenant_db = db.get(x_tenant_id, {})
     item = tenant_db.get(conversation_id)
     
     if not item:
