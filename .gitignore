@@ -2,7 +2,7 @@
 # TERRAFORM
 # ==============================================================================
 
-# Terraform state files (contain sensitive data - NEVER commit!)
+# Terraform state files
 terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
@@ -12,7 +12,7 @@ terraform/terraform.tfstate.backup
 terraform/*.tfplan
 terraform/tfplan
 
-# Variable files (may contain secrets like subscription IDs)
+# Variable files
 terraform/*.tfvars
 terraform/*.auto.tfvars
 
