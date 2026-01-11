@@ -1,0 +1,42 @@
+# ==============================================================================
+# TERRAFORM
+# ==============================================================================
+
+# Terraform state files (contain sensitive data - NEVER commit!)
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Terraform plan files
+terraform/*.tfplan
+terraform/tfplan
+
+# Variable files (may contain secrets like subscription IDs)
+terraform/*.tfvars
+terraform/*.auto.tfvars
+
+# Crash logs
+terraform/crash.log
+terraform/crash.*.log
+
+# Generated plan outputs
+terraform/terraform-plan-output.txt
+
+# ==============================================================================
+# PYTHON / VIRTUAL ENVIRONMENT
+# ==============================================================================
+
+# Virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ==============================================================================
+# IDE / EDITOR
+# ==============================================================================
+
+.vscode/
+.idea/
+*.swp
